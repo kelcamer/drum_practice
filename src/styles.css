@@ -1,0 +1,403 @@
+/* Groove Library — dark editorial look, Anton display + Plex Mono for the grid. */
+
+:root {
+  --bg: #0d0e12;
+  --panel: #16181f;
+  --panel-2: #1d2029;
+  --line: #2a2e3a;
+  --ink: #eef0f5;
+  --muted: #9aa1b1;
+  --dim: #6b7385;
+  --accent: #ff5a3c;
+  --accent-2: #ffc14d;
+  --kick: #ff5a3c;
+  --snare: #4fc3f7;
+  --hat: #ffc14d;
+  --ride: #a78bfa;
+  --crash: #4ade80;
+  --radius: 12px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: 940px;
+  margin: 0 auto;
+  padding: 32px 20px 72px;
+}
+
+/* ---------- header ---------- */
+
+header { margin-bottom: 28px; }
+
+.eyebrow {
+  margin: 0 0 8px;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+h1 {
+  margin: 0;
+  font-family: Anton, Impact, "Arial Narrow Bold", sans-serif;
+  font-weight: 400;
+  font-size: clamp(40px, 9vw, 76px);
+  line-height: 0.94;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
+.tag {
+  margin: 14px 0 0;
+  max-width: 60ch;
+  color: var(--muted);
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+
+/* ---------- now playing ---------- */
+
+.now {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 18px;
+}
+
+.now-top {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.now-name {
+  font-family: Anton, Impact, sans-serif;
+  font-size: 26px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.now-cat {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+  border: 1px solid color-mix(in srgb, var(--accent-2) 40%, transparent);
+  border-radius: 999px;
+  padding: 3px 9px;
+}
+
+.now-desc {
+  margin: 8px 0 16px;
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+/* ---------- grid ---------- */
+
+/* The grid can be 16+ steps wide; let it scroll rather than squash on phones. */
+.gridwrap { overflow-x: auto; padding-bottom: 4px; }
+
+.grid {
+  display: grid;
+  gap: 5px;
+  align-items: center;
+  min-width: 460px;
+}
+
+.rlabel {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+  text-align: right;
+  padding-right: 10px;
+}
+
+.countlabel { color: var(--muted); }
+
+.countrow, .grow { display: grid; gap: 4px; }
+
+.ccell {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  text-align: center;
+  color: var(--dim);
+  padding: 2px 0 6px;
+}
+
+.ccell.cbeat { color: var(--ink); font-weight: 600; }
+
+.cell {
+  height: 26px;
+  border-radius: 5px;
+  background: var(--panel-2);
+  border: 1px solid transparent;
+  transition: transform 90ms ease, box-shadow 90ms ease;
+}
+
+/* first cell of each beat gets a subtle edge so the pulse is readable */
+.cell.beat { border-left: 1px solid var(--line); }
+
+.cell.on { background: var(--lane, var(--muted)); }
+.cell.on.accent { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85); }
+.cell.on.ghost { opacity: 0.42; }
+
+/* playhead */
+.cell.play {
+  box-shadow: 0 0 0 2px var(--accent), 0 0 14px color-mix(in srgb, var(--accent) 55%, transparent);
+  transform: translateY(-1px);
+}
+
+.lane-kick  { --lane: var(--kick); }
+.lane-snare { --lane: var(--snare); }
+.lane-hat   { --lane: var(--hat); }
+.lane-ride  { --lane: var(--ride); }
+.lane-crash { --lane: var(--crash); }
+
+/* ---------- kit pads ---------- */
+
+.kit {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.pad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 120ms ease, transform 90ms ease;
+}
+
+.pad:hover { background: var(--panel-2); }
+.pad.lit { background: var(--panel-2); transform: scale(0.97); }
+.pad.lit .disc { box-shadow: 0 0 0 4px color-mix(in srgb, var(--pad) 35%, transparent); }
+
+.disc {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--pad, var(--muted));
+  transition: box-shadow 120ms ease;
+}
+
+.lbl {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.pad[data-d="kick"]  { --pad: var(--kick); }
+.pad[data-d="snare"] { --pad: var(--snare); }
+.pad[data-d="hat"]   { --pad: var(--hat); }
+.pad[data-d="ride"]  { --pad: var(--ride); }
+.pad[data-d="crash"] { --pad: var(--crash); }
+
+/* ---------- transport ---------- */
+
+.transport {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.btn {
+  font: inherit;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 11px 22px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: var(--accent);
+  color: #140603;
+  cursor: pointer;
+  transition: filter 120ms ease;
+}
+
+.btn:hover { filter: brightness(1.1); }
+
+.btn.ghost {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.btn.ghost:hover { background: var(--panel-2); }
+
+.swing {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.swing input { accent-color: var(--accent); }
+
+/* ---------- tempo ---------- */
+
+.tempo-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-bottom: 18px;
+}
+
+.tempo-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.tempo-k {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.bpm {
+  font-family: Anton, Impact, sans-serif;
+  font-size: 30px;
+  line-height: 1;
+  color: var(--accent-2);
+}
+
+.tempo-unit {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  color: var(--dim);
+}
+
+.tempo-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tempo-ctrl input[type="range"] {
+  flex: 1;
+  accent-color: var(--accent);
+}
+
+.tbtn {
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.tbtn:hover { border-color: var(--muted); }
+
+.tempo-presets {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.tpreset {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11.5px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.tpreset:hover { color: var(--ink); border-color: var(--muted); }
+
+/* ---------- hint + library ---------- */
+
+.hint {
+  margin: 0 0 28px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--dim);
+}
+
+.hint b { color: var(--muted); font-weight: 600; }
+
+.cat { margin-bottom: 20px; }
+
+.cat h3 {
+  margin: 0 0 10px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dim);
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 7px;
+}
+
+.chips { display: flex; flex-wrap: wrap; gap: 7px; }
+
+.chip {
+  font: inherit;
+  font-size: 12.5px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.chip:hover { background: var(--panel-2); color: var(--ink); }
+
+.chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #140603;
+  font-weight: 600;
+}
+
+@media (max-width: 560px) {
+  .wrap { padding: 22px 14px 56px; }
+  .kit { grid-template-columns: repeat(3, 1fr); }
+}
