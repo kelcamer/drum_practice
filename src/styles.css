@@ -398,6 +398,53 @@ h1 {
 }
 
 @media (max-width: 560px) {
-  .wrap { padding: 22px 14px 56px; }
-  .kit { grid-template-columns: repeat(3, 1fr); }
+  .wrap { padding: 20px 12px 48px; }
+
+  h1 { font-size: clamp(32px, 11vw, 46px); }
+  .tag { font-size: 13px; }
+
+  .now { padding: 13px 12px; }
+  .now-name { font-size: 20px; }
+  .now-desc { font-size: 12.5px; margin-bottom: 12px; }
+
+  /* Fit the whole grid on a phone instead of scrolling it sideways:
+     drop the desktop min-width and override the 72px label column that
+     App.jsx sets inline (hence !important), then tighten the cells. */
+  .grid {
+    min-width: 0;
+    grid-template-columns: 44px 1fr !important;
+    gap: 3px;
+  }
+  .countrow, .grow { gap: 2px; }
+
+  .rlabel {
+    font-size: 8.5px;
+    letter-spacing: 0.03em;
+    padding-right: 5px;
+  }
+
+  /* the count row is the tallest thing up top — shrink it most */
+  .ccell { font-size: 9px; padding: 0 0 3px; }
+
+  .cell { height: 18px; border-radius: 3px; }
+
+  /* keep all five pads on one row; just make them smaller */
+  .kit { grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .pad { padding: 10px 4px; gap: 5px; }
+  .disc { width: 22px; height: 22px; }
+  .lbl { font-size: 8.5px; letter-spacing: 0.03em; }
+
+  .btn { padding: 10px 16px; font-size: 13px; }
+  .tempo-panel { padding: 13px 12px; }
+  .bpm { font-size: 25px; }
+}
+
+@media (max-width: 380px) {
+  .wrap { padding: 16px 9px 40px; }
+  .grid { grid-template-columns: 34px 1fr !important; gap: 2px; }
+  .countrow, .grow { gap: 1.5px; }
+  .rlabel { font-size: 7.5px; padding-right: 3px; }
+  .ccell { font-size: 8px; }
+  .cell { height: 15px; border-radius: 2.5px; }
+  .disc { width: 18px; height: 18px; }
 }
