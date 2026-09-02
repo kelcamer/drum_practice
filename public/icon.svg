@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c1f2a"/>
+      <stop offset="1" stop-color="#0b0c11"/>
+    </linearGradient>
+    <linearGradient id="head" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#fdfaf3"/>
+      <stop offset="1" stop-color="#dcd2be"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#ff6f4f"/>
+      <stop offset="1" stop-color="#e8412a"/>
+    </linearGradient>
+    <linearGradient id="wood" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f2cd93"/>
+      <stop offset="1" stop-color="#c68a49"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" fill="url(#bg)"/>
+
+  <!-- tension lugs peeking out from behind the shell -->
+  <g fill="#7c8497">
+    <g id="lug"><rect x="248" y="64" width="16" height="30" rx="5"/></g>
+    <use href="#lug" transform="rotate(45 256 256)"/>
+    <use href="#lug" transform="rotate(90 256 256)"/>
+    <use href="#lug" transform="rotate(135 256 256)"/>
+    <use href="#lug" transform="rotate(180 256 256)"/>
+    <use href="#lug" transform="rotate(225 256 256)"/>
+    <use href="#lug" transform="rotate(270 256 256)"/>
+    <use href="#lug" transform="rotate(315 256 256)"/>
+  </g>
+
+  <circle cx="256" cy="256" r="174" fill="url(#rim)"/>
+  <circle cx="256" cy="256" r="150" fill="url(#head)"/>
+  <circle cx="256" cy="256" r="150" fill="none" stroke="#0000001c" stroke-width="5"/>
+  <circle cx="256" cy="256" r="120" fill="none" stroke="#00000010" stroke-width="3"/>
+
+  <!-- two sticks crossed, tips at opposite ends like a real pair -->
+  <g>
+    <g transform="rotate(-36 256 256)">
+      <rect x="74" y="242" width="364" height="25" rx="12.5" fill="url(#wood)"/>
+      <circle cx="428" cy="254.5" r="18" fill="#f4d29b"/>
+    </g>
+    <g transform="rotate(36 256 256) scale(-1 1) translate(-512 0)">
+      <rect x="74" y="242" width="364" height="25" rx="12.5" fill="url(#wood)"/>
+      <circle cx="428" cy="254.5" r="18" fill="#f4d29b"/>
+    </g>
+  </g>
+</svg>
