@@ -7,6 +7,24 @@ import {
   countLabel,
   charToVoice,
 } from "./grooves.js";
+import {
+  levelInfo,
+  fmtDur,
+  fmtClock,
+  fmtMins,
+  THRESHOLDS,
+  NAMES,
+  MAX_LEVEL,
+  GOAL_MIN,
+} from "./levels.js";
+import {
+  load as loadLog,
+  save as saveLog,
+  addSession,
+  reset as resetLog,
+  streak as streakOf,
+  ranked,
+} from "./practice.js";
 
 const LOOKAHEAD_MS = 25;
 const SCHEDULE_AHEAD = 0.12;
@@ -17,6 +35,13 @@ export default function App() {
   const [playing, setPlaying] = useState(false);
   const [tempo, setTempoState] = useState(GROOVES[0].bpm);
   const [swing, setSwing] = useState(false);
+
+  // ---- practice logging ----
+  const [log, setLog] = useState(loadLog);
+  const [session, setSession] = useState(null); // { riff, startedAt } while practising
+  const [elapsed, setElapsed] = useState(0);
+  const [award, setAward] = useState(null); // level-up banner
+  const [showLog, setShowLog] = useState(false);
 
   const pat = GROOVES[idx];
   const cells = useMemo(() => laneCells(pat), [pat]);
@@ -169,27 +194,6 @@ export default function App() {
     };
   }, []);
 
-  // keyboard
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.repeat) return;
-      const k = e.key.toLowerCase();
-      if (KEYMAP[k]) {
-        resume();
-        flash(KEYMAP[k]);
-        play(KEYMAP[k], now(), 0.95);
-      }
-      if (k === " ") {
-        e.preventDefault();
-        toggle();
-      }
-      if (e.key === "ArrowRight") select(idx + 1, true);
-      if (e.key === "ArrowLeft") select(idx - 1, true);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [flash, toggle, select, idx]);
-
   const categories = useMemo(() => {
     const seen = [];
     GROOVES.forEach((p) => {
@@ -204,6 +208,106 @@ export default function App() {
     play(drum, now(), 0.95);
   };
 
+  // ---- practice session timer ----
+  //
+  // Wall-clock deltas, not a counter we increment, so a throttled background
+  // tab still logs the real time spent.
+  const lvl = useMemo(() => levelInfo(log.totalMs), [log.totalMs]);
+  const liveTotal = log.totalMs + elapsed;
+  const liveLvl = useMemo(() => levelInfo(liveTotal), [liveTotal]);
+  const streak = useMemo(() => streakOf(log), [log]);
+  const top = useMemo(() => ranked(log), [log]);
+  const riffMs = (log.riffs[pat.name] || 0) + (session?.riff === pat.name ? elapsed : 0);
+
+  useEffect(() => {
+    if (!session) return undefined;
+    const tick = () => setElapsed(Date.now() - session.startedAt);
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [session]);
+
+  const startPractice = useCallback(() => {
+    setSession({ riff: pat.name, startedAt: Date.now() });
+    setElapsed(0);
+    setAward(null);
+    if (!rt.current.playing) start();
+  }, [pat.name, start]);
+
+  const stopPractice = useCallback(() => {
+    if (!session) return;
+    const ms = Date.now() - session.startedAt;
+    setSession(null);
+    setElapsed(0);
+    stop();
+    // Under 5 seconds is a mis-tap, not a practice session.
+    if (ms < 5000) return;
+    const before = levelInfo(log.totalMs).level;
+    const next = addSession(log, session.riff, ms);
+    setLog(next);
+    saveLog(next);
+    const after = levelInfo(next.totalMs).level;
+    setAward({ ms, riff: session.riff, levelled: after > before, level: after });
+  }, [session, log, stop]);
+
+  // Switching riffs mid-session banks the time against the riff you were
+  // actually playing, then keeps the clock running on the new one.
+  const bankAndSwitch = useCallback(
+    (i, autoplay) => {
+      if (session) {
+        const ms = Date.now() - session.startedAt;
+        if (ms >= 5000) {
+          const next = addSession(log, session.riff, ms);
+          setLog(next);
+          saveLog(next);
+        }
+        setSession({ riff: GROOVES[((i % GROOVES.length) + GROOVES.length) % GROOVES.length].name, startedAt: Date.now() });
+        setElapsed(0);
+      }
+      select(i, autoplay);
+    },
+    [session, log, select]
+  );
+
+  // Don't lose a session if the tab closes mid-practice.
+  useEffect(() => {
+    if (!session) return undefined;
+    const onLeave = () => {
+      const ms = Date.now() - session.startedAt;
+      if (ms >= 5000) saveLog(addSession(log, session.riff, ms));
+    };
+    window.addEventListener("pagehide", onLeave);
+    return () => window.removeEventListener("pagehide", onLeave);
+  }, [session, log]);
+
+  const clearAll = useCallback(() => {
+    setLog(resetLog());
+    setSession(null);
+    setElapsed(0);
+    setAward(null);
+  }, []);
+
+  // keyboard
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.repeat) return;
+      const k = e.key.toLowerCase();
+      if (KEYMAP[k]) {
+        resume();
+        flash(KEYMAP[k]);
+        play(KEYMAP[k], now(), 0.95);
+      }
+      if (k === " ") {
+        e.preventDefault();
+        toggle();
+      }
+      if (e.key === "ArrowRight") bankAndSwitch(idx + 1, true);
+      if (e.key === "ArrowLeft") bankAndSwitch(idx - 1, true);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [flash, toggle, bankAndSwitch, idx]);
+
   return (
     <div className="wrap" ref={rootRef}>
       <header>
@@ -216,10 +320,102 @@ export default function App() {
         </p>
       </header>
 
+      <div className={"level-panel" + (session ? " practising" : "")}>
+        <div className="lvl-top">
+          <div className="lvl-badge">
+            <span className="lvl-k">Level</span>
+            <span className="lvl-n">{liveLvl.level}</span>
+          </div>
+          <div className="lvl-id">
+            <div className="lvl-name">{liveLvl.name}</div>
+            <div className="lvl-next">
+              {liveLvl.maxed
+                ? "10,000 hours. The whole ladder, done."
+                : `${fmtDur(liveLvl.toNextMin * 60000)} to Level ${liveLvl.level + 1} · ${liveLvl.nextName}`}
+            </div>
+          </div>
+          <div className="lvl-total">
+            <span className="lvl-total-n">{fmtDur(liveTotal)}</span>
+            <span className="lvl-total-k">logged</span>
+          </div>
+        </div>
+
+        <div className="lvl-bar">
+          <div className="lvl-fill" style={{ width: `${liveLvl.pct}%` }} />
+        </div>
+        <div className="lvl-scale">
+          <span>{liveLvl.level === 0 ? "0 min" : fmtMins(liveLvl.floorMin)}</span>
+          <span>{fmtMins(liveLvl.ceilMin)}</span>
+        </div>
+
+        <div className="practice-row">
+          {session ? (
+            <button className="btn practice on" onClick={stopPractice}>
+              ■ Stop <span className="clock">{fmtClock(elapsed)}</span>
+            </button>
+          ) : (
+            <button className="btn practice" onClick={startPractice}>
+              ● Practice
+            </button>
+          )}
+          <div className="practice-meta">
+            {session ? (
+              <>
+                Logging <b>{session.riff}</b>
+              </>
+            ) : (
+              <>
+                <b>{fmtDur(riffMs)}</b> on {pat.name}
+              </>
+            )}
+          </div>
+          <div className="streak" title="Days in a row with practice logged">
+            🔥 {streak}
+            <span className="streak-k">day{streak === 1 ? "" : "s"}</span>
+          </div>
+        </div>
+
+        <div className="goal-line">
+          <div className="goal-bar">
+            <div className="goal-fill" style={{ width: `${Math.max(liveLvl.goalPct, liveTotal > 0 ? 0.4 : 0)}%` }} />
+          </div>
+          <span className="goal-k">
+            {liveLvl.goalPct.toFixed(liveLvl.goalPct < 1 ? 3 : 1)}% of 10,000 hours
+          </span>
+        </div>
+
+        {award && (
+          <div className={"award" + (award.levelled ? " up" : "")}>
+            {award.levelled ? (
+              <>
+                <b>Level {award.level} — {NAMES[award.level - 1]}!</b> Banked{" "}
+                {fmtDur(award.ms)} on {award.riff}.
+              </>
+            ) : (
+              <>
+                Banked <b>{fmtDur(award.ms)}</b> on {award.riff}.
+              </>
+            )}
+            <button className="award-x" onClick={() => setAward(null)}>
+              ×
+            </button>
+          </div>
+        )}
+      </div>
+
       <div className="now">
         <div className="now-top">
           <div className="now-name">{pat.name}</div>
           <div className="now-cat">{pat.cat}</div>
+        </div>
+        <div className="now-logged">
+          {riffMs > 0 ? (
+            <>
+              <b>{fmtDur(riffMs)}</b> practised on this riff
+            </>
+          ) : (
+            "Not practised yet — hit Practice to start the clock."
+          )}
         </div>
         <p className="now-desc">{pat.desc}</p>
 
@@ -279,10 +475,10 @@ export default function App() {
         <button className="btn" onClick={toggle}>
           {playing ? "■ Stop" : "▶ Play"}
         </button>
-        <button className="btn ghost" onClick={() => select(idx - 1, true)}>
+        <button className="btn ghost" onClick={() => bankAndSwitch(idx - 1, true)}>
           ‹ Prev
         </button>
-        <button className="btn ghost" onClick={() => select(idx + 1, true)}>
+        <button className="btn ghost" onClick={() => bankAndSwitch(idx + 1, true)}>
           Next ›
         </button>
         <label className="swing">
@@ -332,7 +528,75 @@ export default function App() {
         </div>
       </div>
 
+      <div className="logbox">
+        <button className="logtoggle" onClick={() => setShowLog(!showLog)}>
+          {showLog ? "▾" : "▸"} Practice log — {fmtDur(log.totalMs)} across{" "}
+          {top.length} riff{top.length === 1 ? "" : "s"} · {log.sessions} session
+          {log.sessions === 1 ? "" : "s"}
+        </button>
+
+        {showLog && (
+          <div className="logbody">
+            {top.length === 0 ? (
+              <p className="logempty">
+                Nothing logged yet. Pick a groove, hit <b>Practice</b>, and the
+                clock runs until you hit <b>Stop</b>. Time from every riff adds
+                into the same total.
+              </p>
+            ) : (
+              <table className="logtable">
+                <thead>
+                  <tr>
+                    <th>Riff</th>
+                    <th>Time</th>
+                    <th>Share</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {top.map(([name, ms]) => (
+                    <tr key={name} className={name === pat.name ? "cur" : ""}>
+                      <td>{name}</td>
+                      <td className="num">{fmtDur(ms)}</td>
+                      <td className="share">
+                        <span
+                          className="sharebar"
+                          style={{ width: `${(ms / top[0][1]) * 100}%` }}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            <h4 className="ladder-h">The ladder — 29 levels to 10,000 hours</h4>
+            <div className="ladder">
+              {THRESHOLDS.map((t, i) => {
+                const done = log.totalMs / 60000 >= t;
+                const cur = liveLvl.level === i + 1;
+                return (
+                  <div
+                    key={t}
+                    className={"rung" + (done ? " done" : "") + (cur ? " cur" : "")}
+                  >
+                    <span className="rung-n">{i + 1}</span>
+                    <span className="rung-name">{NAMES[i]}</span>
+                    <span className="rung-t">{fmtMins(t)}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <button className="resetbtn" onClick={clearAll}>
+              Reset practice log
+            </button>
+          </div>
+        )}
+      </div>
+
       <p className="hint">
+        Hit <b>Practice</b> to start logging time on the current riff — every
+        riff adds into the same total, and that total is your level.{" "}
         Tap <b>Kick / Snare / Hi-Hat / Ride / Crash</b> to play along.{" "}
         <b>Prev / Next</b> (or ← →) walks the whole library. Slow any groove
         down with the tempo panel to learn it, then speed back up.
@@ -348,9 +612,12 @@ export default function App() {
                   <button
                     key={i}
                     className={"chip" + (i === idx ? " active" : "")}
-                    onClick={() => select(i, true)}
+                    onClick={() => bankAndSwitch(i, true)}
                   >
                     {p.name}
+                    {log.riffs[p.name] > 0 && (
+                      <span className="chip-time">{fmtDur(log.riffs[p.name])}</span>
+                    )}
                   </button>
                 ) : null
               )}
