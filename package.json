@@ -2,7 +2,7 @@
   "name": "drum-practice",
   "private": true,
   "version": "1.0.0",
-  "description": "Groove Library — a looping player for 50 common drum grooves with an on-grid count row and tempo control.",
+  "description": "Groove Library — a looping player for 50 common drum grooves with an on-grid count row, tempo control, and a practice timer that levels up toward 10,000 hours.",
   "type": "module",
   "scripts": {
     "dev": "vite",
