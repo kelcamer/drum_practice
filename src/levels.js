@@ -118,3 +118,65 @@ export function fmtMins(mins) {
   const shown = Number.isInteger(h) ? h : Math.round(h * 10) / 10;
   return `${shown.toLocaleString()} hr`;
 }
+
+// ---------------------------------------------------------------------------
+// Per-riff levels.
+//
+// Same round-number shape as the overall ladder, but it tops out at 100 hours
+// instead of 10,000 — 10,000 hours on a single groove is not a thing anyone
+// does, whereas 100 hours on one riff is a real mastery number. Overall level
+// and riff level run independently: every riff feeds the overall total, and
+// each riff also levels up on its own time.
+
+const RIFF_HOURS = [1, 2, 3, 4, 5, 10, 15, 20, 25, 50, 75, 100];
+
+/** Cumulative MINUTES on ONE riff to reach each riff level. */
+export const RIFF_THRESHOLDS = [10, 20, 30, 40, 50, ...RIFF_HOURS.map((h) => h * 60)];
+
+export const RIFF_NAMES = [
+  "Touched It",
+  "Sketching It",
+  "Getting It",
+  "Hands Know It",
+  "Steady",
+  "Locked In",
+  "Muscle Memory",
+  "Eyes Closed",
+  "Own It",
+  "Second Nature",
+  "Effortless",
+  "Automatic",
+  "Signature Groove",
+  "Mastered",
+  "Definitive",
+  "Untouchable",
+  "Immortal",
+];
+
+export const RIFF_MAX_LEVEL = RIFF_THRESHOLDS.length;
+
+/** Where `ms` on a single riff puts that riff. Level 0 === not started. */
+export function riffLevelInfo(ms) {
+  const mins = ms / 60000;
+  let level = 0;
+  for (let i = 0; i < RIFF_THRESHOLDS.length; i += 1) {
+    if (mins >= RIFF_THRESHOLDS[i]) level = i + 1;
+  }
+  const maxed = level >= RIFF_MAX_LEVEL;
+  const floor = level === 0 ? 0 : RIFF_THRESHOLDS[level - 1];
+  const ceil = maxed ? RIFF_THRESHOLDS[RIFF_MAX_LEVEL - 1] : RIFF_THRESHOLDS[level];
+  const pct = maxed
+    ? 100
+    : Math.max(0, Math.min(100, ((mins - floor) / (ceil - floor)) * 100));
+
+  return {
+    level,
+    maxed,
+    name: level === 0 ? "Not started" : RIFF_NAMES[level - 1],
+    nextName: maxed ? null : RIFF_NAMES[level],
+    floorMin: floor,
+    ceilMin: ceil,
+    pct,
+    toNextMin: maxed ? 0 : Math.max(0, ceil - mins),
+  };
+}

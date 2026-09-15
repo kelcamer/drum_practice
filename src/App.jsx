@@ -16,6 +16,10 @@ import {
   NAMES,
   MAX_LEVEL,
   GOAL_MIN,
+  riffLevelInfo,
+  RIFF_THRESHOLDS,
+  RIFF_NAMES,
+  RIFF_MAX_LEVEL,
 } from "./levels.js";
 import {
   load as loadLog,
@@ -218,6 +222,7 @@ export default function App() {
   const streak = useMemo(() => streakOf(log), [log]);
   const top = useMemo(() => ranked(log), [log]);
   const riffMs = (log.riffs[pat.name] || 0) + (session?.riff === pat.name ? elapsed : 0);
+  const riffLvl = useMemo(() => riffLevelInfo(riffMs), [riffMs]);
 
   useEffect(() => {
     if (!session) return undefined;
@@ -243,11 +248,20 @@ export default function App() {
     // Under 5 seconds is a mis-tap, not a practice session.
     if (ms < 5000) return;
     const before = levelInfo(log.totalMs).level;
+    const rBefore = riffLevelInfo(log.riffs[session.riff] || 0).level;
     const next = addSession(log, session.riff, ms);
     setLog(next);
     saveLog(next);
     const after = levelInfo(next.totalMs).level;
-    setAward({ ms, riff: session.riff, levelled: after > before, level: after });
+    const rAfter = riffLevelInfo(next.riffs[session.riff] || 0).level;
+    setAward({
+      ms,
+      riff: session.riff,
+      levelled: after > before,
+      level: after,
+      riffLevelled: rAfter > rBefore,
+      riffLevel: rAfter,
+    });
   }, [session, log, stop]);
 
   // Switching riffs mid-session banks the time against the riff you were
@@ -321,6 +335,7 @@ export default function App() {
       </header>
 
       <div className={"level-panel" + (session ? " practising" : "")}>
+        <p className="panel-k">Overall — every riff adds in</p>
         <div className="lvl-top">
           <div className="lvl-badge">
             <span className="lvl-k">Level</span>
@@ -336,7 +351,9 @@ export default function App() {
           </div>
           <div className="lvl-total">
             <span className="lvl-total-n">{fmtDur(liveTotal)}</span>
-            <span className="lvl-total-k">logged</span>
+            <span className="lvl-total-k">
+              all riffs{top.length ? ` · ${top.length} played` : ""}
+            </span>
           </div>
         </div>
 
@@ -396,6 +413,15 @@ export default function App() {
                 Banked <b>{fmtDur(award.ms)}</b> on {award.riff}.
               </>
             )}
+            {award.riffLevelled && (
+              <>
+                {" "}
+                <span className="award-riff">
+                  {award.riff} reached riff level {award.riffLevel} —{" "}
+                  {RIFF_NAMES[award.riffLevel - 1]}.
+                </span>
+              </>
+            )}
             <button className="award-x" onClick={() => setAward(null)}>
               ×
             </button>
@@ -408,14 +434,24 @@ export default function App() {
           <div className="now-name">{pat.name}</div>
           <div className="now-cat">{pat.cat}</div>
         </div>
-        <div className="now-logged">
-          {riffMs > 0 ? (
-            <>
-              <b>{fmtDur(riffMs)}</b> practised on this riff
-            </>
-          ) : (
-            "Not practised yet — hit Practice to start the clock."
-          )}
+        <div className="rifflvl">
+          <div className="rifflvl-badge">
+            <span className="rifflvl-n">{riffLvl.level}</span>
+          </div>
+          <div className="rifflvl-body">
+            <div className="rifflvl-head">
+              <span className="rifflvl-name">{riffLvl.name}</span>
+              <span className="rifflvl-time">{fmtDur(riffMs)} on this riff</span>
+            </div>
+            <div className="rifflvl-bar">
+              <div className="rifflvl-fill" style={{ width: `${riffLvl.pct}%` }} />
+            </div>
+            <div className="rifflvl-next">
+              {riffLvl.maxed
+                ? `Riff level ${RIFF_MAX_LEVEL} — 100 hours on one groove.`
+                : `${fmtDur(riffLvl.toNextMin * 60000)} to riff level ${riffLvl.level + 1} · ${riffLvl.nextName}`}
+            </div>
+          </div>
         </div>
         <p className="now-desc">{pat.desc}</p>
 
@@ -530,9 +566,9 @@ export default function App() {
 
       <div className="logbox">
         <button className="logtoggle" onClick={() => setShowLog(!showLog)}>
-          {showLog ? "▾" : "▸"} Practice log — {fmtDur(log.totalMs)} across{" "}
-          {top.length} riff{top.length === 1 ? "" : "s"} · {log.sessions} session
-          {log.sessions === 1 ? "" : "s"}
+          {showLog ? "▾" : "▸"} Practice log — {fmtDur(log.totalMs)} overall
+          across {top.length} riff{top.length === 1 ? "" : "s"} ·{" "}
+          {log.sessions} session{log.sessions === 1 ? "" : "s"}
         </button>
 
         {showLog && (
@@ -548,14 +584,20 @@ export default function App() {
                 <thead>
                   <tr>
                     <th>Riff</th>
+                    <th>Level</th>
                     <th>Time</th>
                     <th>Share</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {top.map(([name, ms]) => (
+                  {top.map(([name, ms]) => {
+                    const rl = riffLevelInfo(ms);
+                    return (
                     <tr key={name} className={name === pat.name ? "cur" : ""}>
                       <td>{name}</td>
+                      <td className="num">
+                        <span className="lvlpill">L{rl.level}</span> {rl.name}
+                      </td>
                       <td className="num">{fmtDur(ms)}</td>
                       <td className="share">
                         <span
@@ -564,8 +606,23 @@ export default function App() {
                         />
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
+                <tfoot>
+                  <tr>
+                    <td>
+                      <b>All riffs</b>
+                    </td>
+                    <td className="num">
+                      <span className="lvlpill on">L{lvl.level}</span> {lvl.name}
+                    </td>
+                    <td className="num">
+                      <b>{fmtDur(log.totalMs)}</b>
+                    </td>
+                    <td />
+                  </tr>
+                </tfoot>
               </table>
             )}
 
@@ -586,6 +643,29 @@ export default function App() {
                 );
               })}
             </div>
+
+            <h4 className="ladder-h">
+              Per-riff ladder — 17 levels, 100 hours on one groove
+            </h4>
+            <div className="ladder">
+              {RIFF_THRESHOLDS.map((t, i) => {
+                const done = riffMs / 60000 >= t;
+                const cur = riffLvl.level === i + 1;
+                return (
+                  <div
+                    key={t}
+                    className={"rung" + (done ? " done" : "") + (cur ? " cur" : "")}
+                  >
+                    <span className="rung-n">{i + 1}</span>
+                    <span className="rung-name">{RIFF_NAMES[i]}</span>
+                    <span className="rung-t">{fmtMins(t)}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="ladder-note">
+              Shown against <b>{pat.name}</b> — every riff has its own level.
+            </p>
 
             <button className="resetbtn" onClick={clearAll}>
               Reset practice log
@@ -616,7 +696,10 @@ export default function App() {
                   >
                     {p.name}
                     {log.riffs[p.name] > 0 && (
-                      <span className="chip-time">{fmtDur(log.riffs[p.name])}</span>
+                      <span className="chip-time">
+                        L{riffLevelInfo(log.riffs[p.name]).level} ·{" "}
+                        {fmtDur(log.riffs[p.name])}
+                      </span>
                     )}
                   </button>
                 ) : null

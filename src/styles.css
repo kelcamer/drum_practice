@@ -848,3 +848,117 @@ h1 {
   .lvl-total { width: 100%; text-align: left; flex-direction: row; gap: 6px; align-items: baseline; }
   .practice-row .btn.practice { flex: 1 1 100%; }
 }
+
+/* ---------- per-riff level ---------- */
+
+.panel-k {
+  margin: 0 0 12px;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.rifflvl {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin: 2px 0 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+}
+
+.rifflvl-badge {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--snare);
+  display: grid;
+  place-items: center;
+}
+
+.rifflvl-n {
+  font-family: Anton, Impact, sans-serif;
+  font-size: 17px;
+  color: #0d0e12;
+}
+
+.rifflvl-body { flex: 1 1 auto; min-width: 0; }
+
+.rifflvl-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.rifflvl-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--snare);
+}
+
+.rifflvl-time {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 10px;
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+.rifflvl-bar {
+  margin-top: 6px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.rifflvl-fill {
+  height: 100%;
+  background: var(--snare);
+  transition: width 0.4s ease;
+}
+
+.rifflvl-next {
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.award-riff { color: var(--snare); }
+
+.lvlpill {
+  display: inline-block;
+  min-width: 25px;
+  text-align: center;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--line);
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 600;
+  margin-right: 5px;
+}
+
+.lvlpill.on { background: var(--accent); color: #fff; }
+
+.logtable tfoot td {
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+  border-bottom: 0;
+  color: var(--ink);
+}
+
+.ladder-note {
+  margin: 9px 0 0;
+  font-size: 11px;
+  color: var(--dim);
+}
+
+@media (max-width: 560px) {
+  .rifflvl-head { flex-wrap: wrap; gap: 2px; }
+}
