@@ -36,7 +36,40 @@ function env(g, t, a, d, peak) {
   g.gain.exponentialRampToValueAtTime(0.0001, t + a + d);
 }
 
+// Toms: a pitched sine that sags a little, plus a short noise slap for the stick.
+function tomVoice(t, v, hi, lo, decay) {
+  const c = ctx();
+  const o = c.createOscillator();
+  const g = c.createGain();
+  o.type = "sine";
+  o.frequency.setValueAtTime(hi, t);
+  o.frequency.exponentialRampToValueAtTime(lo, t + decay * 0.8);
+  env(g, t, 0.003, decay, 0.85 * v);
+  o.connect(g);
+  g.connect(MASTER);
+  o.start(t);
+  o.stop(t + decay + 0.05);
+  const s = c.createBufferSource();
+  s.buffer = noise(0.05);
+  const bp = c.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.frequency.value = hi * 6;
+  const ng = c.createGain();
+  env(ng, t, 0.001, 0.03, 0.25 * v);
+  s.connect(bp);
+  bp.connect(ng);
+  ng.connect(MASTER);
+  s.start(t);
+  s.stop(t + 0.05);
+}
+
 const V = {
+  tom(t, v) {
+    tomVoice(t, v, 240, 170, 0.32);
+  },
+  floor(t, v) {
+    tomVoice(t, v, 120, 82, 0.5);
+  },
   kick(t, v) {
     const c = ctx();
     const o = c.createOscillator();
@@ -157,5 +190,7 @@ export const KIT = [
   { id: "hat", label: "Hi-Hat", key: "D" },
   { id: "ride", label: "Ride", key: "F" },
   { id: "crash", label: "Crash", key: "G" },
+  { id: "tom", label: "Hi Tom", key: "H" },
+  { id: "floor", label: "Floor", key: "J" },
 ];
-export const KEYMAP = { a: "kick", s: "snare", d: "hat", f: "ride", g: "crash" };
+export const KEYMAP = { a: "kick", s: "snare", d: "hat", f: "ride", g: "crash", h: "tom", j: "floor" };

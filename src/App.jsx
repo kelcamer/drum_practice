@@ -3,6 +3,7 @@ import { play, resume, now, KIT, KEYMAP } from "./audio.js";
 import {
   GROOVES,
   LANES,
+  visibleLanes,
   laneCells,
   countLabel,
   charToVoice,
@@ -27,7 +28,15 @@ import {
   addSession,
   reset as resetLog,
   streak as streakOf,
+  thisWeekMs,
   ranked,
+  dayKey,
+  checkpoint,
+  clearCheckpoint,
+  recover,
+  persist,
+  exportJson,
+  importJson,
 } from "./practice.js";
 
 const LOOKAHEAD_MS = 25;
@@ -46,6 +55,11 @@ export default function App() {
   const [elapsed, setElapsed] = useState(0);
   const [award, setAward] = useState(null); // level-up banner
   const [showLog, setShowLog] = useState(false);
+  const [addRiff, setAddRiff] = useState("");
+  const [addMins, setAddMins] = useState("20");
+  const [addDay, setAddDay] = useState(() => dayKey());
+  const [logMsg, setLogMsg] = useState("");
+  const fileRef = useRef(null);
 
   const pat = GROOVES[idx];
   const cells = useMemo(() => laneCells(pat), [pat]);
@@ -220,13 +234,29 @@ export default function App() {
   const liveTotal = log.totalMs + elapsed;
   const liveLvl = useMemo(() => levelInfo(liveTotal), [liveTotal]);
   const streak = useMemo(() => streakOf(log), [log]);
+  const weekMs = useMemo(() => thisWeekMs(log), [log]);
   const top = useMemo(() => ranked(log), [log]);
   const riffMs = (log.riffs[pat.name] || 0) + (session?.riff === pat.name ? elapsed : 0);
   const riffLvl = useMemo(() => riffLevelInfo(riffMs), [riffMs]);
 
+  // On open: ask the browser to keep our storage, and bank any session that
+  // was still running when the page last went away (tab closed, phone locked
+  // and the browser killed it…) instead of losing it.
+  useEffect(() => {
+    persist();
+    const r = recover(loadLog());
+    if (r) {
+      setLog(r.log);
+      setAward({ ms: r.ms, riff: r.riff, recovered: true });
+    }
+  }, []);
+
   useEffect(() => {
     if (!session) return undefined;
-    const tick = () => setElapsed(Date.now() - session.startedAt);
+    const tick = () => {
+      setElapsed(Date.now() - session.startedAt);
+      checkpoint(session);
+    };
     tick();
     const t = setInterval(tick, 1000);
     return () => clearInterval(t);
@@ -244,6 +274,7 @@ export default function App() {
     const ms = Date.now() - session.startedAt;
     setSession(null);
     setElapsed(0);
+    clearCheckpoint();
     stop();
     // Under 5 seconds is a mis-tap, not a practice session.
     if (ms < 5000) return;
@@ -275,7 +306,11 @@ export default function App() {
           setLog(next);
           saveLog(next);
         }
-        setSession({ riff: GROOVES[((i % GROOVES.length) + GROOVES.length) % GROOVES.length].name, startedAt: Date.now() });
+        const nextSession = { riff: GROOVES[((i % GROOVES.length) + GROOVES.length) % GROOVES.length].name, startedAt: Date.now() };
+        // Overwrite the checkpoint now, or a close before the next tick would
+        // re-bank the riff we just banked.
+        checkpoint(nextSession);
+        setSession(nextSession);
         setElapsed(0);
       }
       select(i, autoplay);
@@ -283,23 +318,85 @@ export default function App() {
     [session, log, select]
   );
 
-  // Don't lose a session if the tab closes mid-practice.
+  // Don't lose a session if the tab closes mid-practice: stamp the checkpoint
+  // the moment the page is hidden. The next open banks it (see recover()).
   useEffect(() => {
     if (!session) return undefined;
-    const onLeave = () => {
-      const ms = Date.now() - session.startedAt;
-      if (ms >= 5000) saveLog(addSession(log, session.riff, ms));
+    const onLeave = () => checkpoint(session);
+    const onVis = () => {
+      if (document.visibilityState === "hidden") onLeave();
     };
     window.addEventListener("pagehide", onLeave);
-    return () => window.removeEventListener("pagehide", onLeave);
-  }, [session, log]);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.removeEventListener("pagehide", onLeave);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [session]);
 
   const clearAll = useCallback(() => {
+    if (
+      !window.confirm(
+        `Erase ${fmtDur(log.totalMs)} of practice and your Level ${lvl.level}? This can't be undone.`
+      )
+    )
+      return;
+    clearCheckpoint();
     setLog(resetLog());
     setSession(null);
     setElapsed(0);
     setAward(null);
-  }, []);
+  }, [log.totalMs, lvl.level]);
+
+  // Log time you played but didn't time (forgot to hit Practice, or it got lost).
+  const addMissed = useCallback(() => {
+    const mins = Number(addMins);
+    const riff = addRiff || pat.name;
+    const [y, m, d] = addDay.split("-").map(Number);
+    if (!(mins > 0) || !y) return;
+    const before = levelInfo(log.totalMs).level;
+    const next = addSession(log, riff, Math.round(mins * 60000), new Date(y, m - 1, d));
+    setLog(next);
+    saveLog(next);
+    const after = levelInfo(next.totalMs).level;
+    setAward({ ms: mins * 60000, riff, levelled: after > before, level: after });
+    setLogMsg(`Added ${fmtDur(mins * 60000)} on ${riff}.`);
+  }, [addMins, addRiff, addDay, pat.name, log]);
+
+  const downloadBackup = useCallback(() => {
+    const blob = new Blob([exportJson(log)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `groove-library-backup-${dayKey()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    setLogMsg("Backup downloaded — keep it somewhere safe.");
+  }, [log]);
+
+  const restoreBackup = useCallback(
+    (file) => {
+      if (!file) return;
+      file.text().then((text) => {
+        try {
+          const next = importJson(text);
+          if (
+            !window.confirm(
+              `Replace your current log (${fmtDur(log.totalMs)}) with the backup (${fmtDur(next.totalMs)}, Level ${levelInfo(next.totalMs).level})?`
+            )
+          )
+            return;
+          setLog(next);
+          saveLog(next);
+          setLogMsg(`Restored ${fmtDur(next.totalMs)} from backup.`);
+        } catch {
+          setLogMsg("That file isn't a Groove Library backup.");
+        }
+      });
+    },
+    [log.totalMs]
+  );
 
   // keyboard
   useEffect(() => {
@@ -325,10 +422,11 @@ export default function App() {
   return (
     <div className="wrap" ref={rootRef}>
       <header>
-        <p className="eyebrow">50 Beats to Know · Hear · See · Learn</p>
+        <p className="eyebrow">60+ Beats to Know · Hear · See · Learn</p>
         <h1>Groove Library</h1>
         <p className="tag">
-          Fifty of the most common drum grooves — pick one, it loops so you can
+          Fifty of the most common drum grooves plus ten polyrhythm and tom
+          drills — pick one, it loops so you can
           hear it, and watch it light up on the grid and the kit. Tap the pads to
           play along.
         </p>
@@ -386,9 +484,12 @@ export default function App() {
               </>
             )}
           </div>
-          <div className="streak" title="Days in a row with practice logged">
+          <div
+            className="streak"
+            title={`Weeks in a row with practice logged (Mon–Sun) · ${fmtDur(weekMs)} this week`}
+          >
             🔥 {streak}
-            <span className="streak-k">day{streak === 1 ? "" : "s"}</span>
+            <span className="streak-k">week{streak === 1 ? "" : "s"}</span>
           </div>
         </div>
 
@@ -403,7 +504,12 @@ export default function App() {
 
         {award && (
           <div className={"award" + (award.levelled ? " up" : "")}>
-            {award.levelled ? (
+            {award.recovered ? (
+              <>
+                Saved your unfinished session — <b>{fmtDur(award.ms)}</b> on{" "}
+                {award.riff} is banked.
+              </>
+            ) : award.levelled ? (
               <>
                 <b>Level {award.level} — {NAMES[award.level - 1]}!</b> Banked{" "}
                 {fmtDur(award.ms)} on {award.riff}.
@@ -477,7 +583,7 @@ export default function App() {
             </div>
 
             {/* lanes */}
-            {LANES.map(([id, , label]) => (
+            {visibleLanes(pat).map(([id, , label]) => (
               <Lane
                 key={id}
                 id={id}
@@ -667,9 +773,61 @@ export default function App() {
               Shown against <b>{pat.name}</b> — every riff has its own level.
             </p>
 
-            <button className="resetbtn" onClick={clearAll}>
-              Reset practice log
-            </button>
+            <div className="addtime">
+              <h4 className="ladder-h" style={{ marginTop: 0 }}>
+                Add time you didn't log
+              </h4>
+              <div className="addtime-row">
+                <select value={addRiff || pat.name} onChange={(e) => setAddRiff(e.target.value)}>
+                  {GROOVES.map((g) => (
+                    <option key={g.name} value={g.name}>
+                      {g.name}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  min="1"
+                  max="600"
+                  value={addMins}
+                  onChange={(e) => setAddMins(e.target.value)}
+                  aria-label="Minutes"
+                />
+                <span className="lognote" style={{ margin: 0 }}>min on</span>
+                <input
+                  type="date"
+                  value={addDay}
+                  max={dayKey()}
+                  onChange={(e) => setAddDay(e.target.value)}
+                  aria-label="Day"
+                />
+                <button className="resetbtn" style={{ marginTop: 0 }} onClick={addMissed}>
+                  ＋ Add
+                </button>
+              </div>
+            </div>
+
+            <div className="logactions">
+              <button className="resetbtn" onClick={downloadBackup}>
+                ⤓ Download backup
+              </button>
+              <button className="resetbtn" onClick={() => fileRef.current?.click()}>
+                ⤒ Restore backup
+              </button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="application/json,.json"
+                onChange={(e) => {
+                  restoreBackup(e.target.files?.[0]);
+                  e.target.value = "";
+                }}
+              />
+              <button className="resetbtn danger" onClick={clearAll}>
+                Reset practice log
+              </button>
+            </div>
+            {logMsg && <p className="lognote">{logMsg}</p>}
           </div>
         )}
       </div>
@@ -677,7 +835,8 @@ export default function App() {
       <p className="hint">
         Hit <b>Practice</b> to start logging time on the current riff — every
         riff adds into the same total, and that total is your level.{" "}
-        Tap <b>Kick / Snare / Hi-Hat / Ride / Crash</b> to play along.{" "}
+        Tap <b>Kick / Snare / Hi-Hat / Ride / Crash / Hi Tom / Floor</b> (or
+        A–J) to play along.{" "}
         <b>Prev / Next</b> (or ← →) walks the whole library. Slow any groove
         down with the tempo panel to learn it, then speed back up.
       </p>
