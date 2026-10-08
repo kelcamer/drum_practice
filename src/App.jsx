@@ -244,10 +244,8 @@ export default function App() {
   // and the browser killed it…) instead of losing it.
   useEffect(() => {
     persist();
-    let current = loadLog();
-    const r = recover(current);
+    const r = recover(loadLog());
     if (r) {
-      current = r.log;
       setLog(r.log);
       setAward({ ms: r.ms, riff: r.riff, recovered: true });
     }
@@ -255,18 +253,25 @@ export default function App() {
     // Restore link for a level lost when the browser cleared its storage:
     // opening the app with #restore-level-6 tops the log up to exactly that
     // level's threshold. Never lowers anything, and is a no-op once you're there.
-    const m = /^#restore-level-(\d+)$/.exec(window.location.hash);
-    if (m) {
+    // Also listens for hash changes — tapping the link with the app already
+    // open in that tab doesn't reload the page.
+    const restoreFromHash = () => {
+      const m = /^#restore-level-(\d+)$/.exec(window.location.hash);
+      if (!m) return;
       history.replaceState(null, "", window.location.pathname + window.location.search);
+      const base = loadLog();
       const target = Math.min(Number(m[1]), MAX_LEVEL);
-      const needMs = target > 0 ? THRESHOLDS[target - 1] * 60000 - current.totalMs : 0;
+      const needMs = target > 0 ? THRESHOLDS[target - 1] * 60000 - base.totalMs : 0;
       if (needMs > 0) {
-        const next = addSession(current, "Restored progress", needMs);
+        const next = addSession(base, "Restored progress", needMs);
         setLog(next);
         saveLog(next);
         setAward({ ms: needMs, riff: "Restored progress", levelled: true, level: target });
       }
-    }
+    };
+    restoreFromHash();
+    window.addEventListener("hashchange", restoreFromHash);
+    return () => window.removeEventListener("hashchange", restoreFromHash);
   }, []);
 
   useEffect(() => {
