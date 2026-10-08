@@ -445,11 +445,11 @@ export default function App() {
   return (
     <div className="wrap" ref={rootRef}>
       <header>
-        <p className="eyebrow">60+ Beats to Know · Hear · See · Learn</p>
+        <p className="eyebrow">65+ Beats to Know · Hear · See · Learn</p>
         <h1>Groove Library</h1>
         <p className="tag">
-          Fifty of the most common drum grooves plus ten polyrhythm and tom
-          drills — pick one, it loops so you can
+          Fifty of the most common drum grooves plus polyrhythm, tom and
+          paradiddle drills — pick one, it loops so you can
           hear it, and watch it light up on the grid and the kit. Tap the pads to
           play along.
         </p>

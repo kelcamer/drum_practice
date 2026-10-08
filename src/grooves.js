@@ -1,4 +1,4 @@
-// 50 common drum grooves, plus polyrhythm and tom drills.
+// 50 common drum grooves, plus polyrhythm, tom and paradiddle drills.
 //
 // Default tempos on the grooves in rotation are set to your current working
 // tempo from the practice notes, not the record tempo — push up from there.
@@ -91,10 +91,23 @@ export const GROOVES = [
   P("4 over 3", "Polyrhythms & Toms", 72, 4, 3, "Flip it: kick holds three beats while the high tom lands every three sixteenths — four even notes across the bar.", { k: "x---x---x---", t: "x--x--x--x--", h: "--x---x---x-" }),
   P("Tresillo 3-3-2", "Polyrhythms & Toms", 92, 4, 4, "Kick in groups of 3+3+2 sixteenths under a straight backbeat — the Afro-Cuban cell hiding inside reggaeton, pop and funk.", { h: "x-x-x-x-x-x-x-x-", k: "x--x--x-x--x--x-", s: "----x-------x---" }),
   P("Bembé 12/8 (3 against 4)", "Polyrhythms & Toms", 84, 3, 4, "West African bell on the ride, kick on the four big pulses, floor tom carving three across them — polyrhythm as a real groove.", { r: "x-x-xx-x-x-x", k: "x--x--x--x--", f: "x---x---x---" }),
-  P("Paradiddle Groove", "Polyrhythms & Toms", 76, 4, 4, "RLRR LRLL split between hat (right) and snare (left), accents on 2 & 4. Builds the independence the Dilla feel asks for.", { h: "x-xx-x--x-xx-x--", s: "-g--X-gg-g--X-gg", k: "x-------x-------" }),
   P("Floor Tom Groove", "Polyrhythms & Toms", 96, 4, 4, "Right hand moves from hat to floor tom — big, rumbling indie-rock pulse with a high-tom pickup at the end.", { f: "x-x-x-x-x-x-x-x-", k: "x-------x-x-----", s: "----x-------x---", t: "--------------x-" }),
   P("Jungle Toms", "Polyrhythms & Toms", 110, 4, 4, "Gene Krupa's 'Sing, Sing, Sing' tom-tom stomp (approx) — floor and high tom trading over four on the floor.", { k: "x---x---x---x---", f: "X---x---X---x---", t: "------x-------xx" }),
   P("Around the Kit", "Polyrhythms & Toms", 70, 4, 4, "Sixteenth fill down the kit: snare, high tom, floor tom, then land it with kick and crash. Loop it until it's smooth.", { s: "xxxx------------", t: "----xxxx--------", f: "--------xxxx----", k: "------------x-x-", c: "x---------------" }),
+
+  // ---- Paradiddles ----
+  // Rudiment drills: the grid shows your RIGHT hand on the Hi Tom row and your
+  // LEFT hand on the Snare row so you can read the sticking. Play them split
+  // like that, or play both rows on the snare. Kick keeps the pulse.
+  P("Single Paradiddle", "Paradiddles", 70, 4, 4, "RLRR LRLL — the mother rudiment. Two singles then a double, and the lead hand flips every group. Right = Hi Tom row, left = Snare row.", { t: "X-xx-x--X-xx-x--", s: "-x--X-xx-x--X-xx", k: "x---x---x---x---" }),
+  P("Double Paradiddle", "Paradiddles", 66, 3, 4, "RLRLRR LRLRLL — four singles then a double, six notes per group, so it lives naturally in triplets. Right = Hi Tom row, left = Snare row.", { t: "X-x-xx-x-x--", s: "-x-x--X-x-xx", k: "x--x--x--x--" }),
+  P("Triple Paradiddle", "Paradiddles", 64, 4, 4, "RLRLRLRR LRLRLRLL — six singles then a double, filling a whole beat-pair of sixteenths. Right = Hi Tom row, left = Snare row.", { t: "X-x-x-xx-x-x-x--", s: "-x-x-x--X-x-x-xx", k: "x---x---x---x---" }),
+  P("Paradiddle-Diddle", "Paradiddles", 70, 3, 4, "RLRRLL — a paradiddle with an extra double tacked on. Always leads with the same hand; rolls smoothly in triplets and 6/8. Right = Hi Tom row, left = Snare row.", { t: "X-xx--X-xx--", s: "-x--xx-x--xx", k: "x--x--x--x--" }),
+  P("Inverted Paradiddle", "Paradiddles", 66, 4, 4, "RLLR LRRL — the double moves to the middle. Awkward at first, then it unlocks some of the funkiest hand grooves there are. Right = Hi Tom row, left = Snare row.", { t: "X--x-xx-X--x-xx-", s: "-xx-X--x-xx-X--x", k: "x---x---x---x---" }),
+  P("Reverse Paradiddle", "Paradiddles", 66, 4, 4, "RRLR LLRL — the single paradiddle played backwards, double first. Great for fills that start with a strong double. Right = Hi Tom row, left = Snare row.", { t: "Xx-x--x-Xx-x--x-", s: "--x-Xx-x--x-Xx-x", k: "x---x---x---x---" }),
+  P("Paradiddle Groove", "Paradiddles", 76, 4, 4, "RLRR LRLL split between hat (right) and snare (left), accents on 2 & 4. Builds the independence the Dilla feel asks for.", { h: "x-xx-x--x-xx-x--", s: "-g--X-gg-g--X-gg", k: "x-------x-------" }),
+  P("Inverted Paradiddle Funk", "Paradiddles", 80, 4, 4, "The inverted paradiddle as a groove: right hand on the hat, left on the snare, and the left-hand accents land right on 2 & 4. Instant greasy funk.", { h: "x--x-xx-x--x-xx-", s: "-gg-X--g-gg-X--g", k: "x-------x-x-----" }),
+  P("Tom Paradiddle", "Paradiddles", 76, 4, 4, "Single paradiddle around the toms: right hand on the floor tom, left on the high tom, kick on every beat. Big tribal rumble.", { f: "X-xx-x--X-xx-x--", t: "-x--X-xx-x--X-xx", k: "x---x---x---x---" }),
 ];
 
 
