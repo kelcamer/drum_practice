@@ -22,8 +22,11 @@ Practice data lives only in the browser's `localStorage`.
 - Riff time is keyed by groove **name** — renaming a groove orphans its logged time.
 
 ## The user
-- Kel is a drummer at **Level 6** (restored to 1 hr on 2026-10-08 after browser
-  storage was cleared; Safari/home-screen storage can be wiped or separate).
+- Kel is a drummer at **Level 8 — Pocket Hunter** (3+ hr logged) as of
+  2026-10-12. Was restored to Level 6 on 2026-10-08 after browser storage was
+  cleared; Safari/home-screen storage can be wiped or kept separate.
+  If the app ever shows less, `#restore-level-8` or "Add time you didn't log"
+  puts it back.
 - Kit: kick, snare, hi-hat, ride, high tom, floor tom (+ crash in app).
 - Practises weekly, so the streak counts Mon–Sun weeks.
 - Prefers encouragement over criticism.
