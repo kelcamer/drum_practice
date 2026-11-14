@@ -4,13 +4,18 @@
 // drives the level ladder. `riffs` keeps the per-groove breakdown alongside it,
 // so you can see which grooves you've actually put the hours into.
 
+import { THRESHOLDS } from "./levels.js";
+
 // Never rename this key — it's where everyone's existing hours and levels live.
 const KEY = "groove-library.practice.v1";
 // The session that's running right now, checkpointed every few seconds so a
 // closed tab, a killed phone browser or a dead battery can't eat it.
 const ACTIVE_KEY = "groove-library.active.v1";
 
-const EMPTY = { v: 1, totalMs: 0, riffs: {}, days: {}, sessions: 0 };
+// Start everyone at Level 10 (5 hours = 300 minutes).
+export const STARTING_MS = THRESHOLDS[9] * 60000;
+
+const EMPTY = { v: 1, totalMs: STARTING_MS, riffs: {}, days: {}, sessions: 0 };
 
 /** Local calendar day, not UTC — a 11pm session belongs to that evening. */
 export function dayKey(d = new Date()) {
@@ -22,7 +27,7 @@ export function dayKey(d = new Date()) {
 function normalize(p) {
   return {
     v: 1,
-    totalMs: Number(p.totalMs) || 0,
+    totalMs: Math.max(Number(p.totalMs) || 0, STARTING_MS),
     riffs: p.riffs && typeof p.riffs === "object" ? p.riffs : {},
     days: p.days && typeof p.days === "object" ? p.days : {},
     sessions: Number(p.sessions) || 0,
@@ -59,10 +64,11 @@ export function persist() {
 }
 
 /**
- * Add one finished session. Returns the new log (never mutates the old one).
+ * Add `ms` of practice time on `riffName`.
+ * Pass `countSession = true` once per session (not on periodic auto-saves).
  * `when` is the day it counts toward — defaults to today.
  */
-export function addSession(log, riffName, ms, when = new Date()) {
+export function addTime(log, riffName, ms, countSession = false, when = new Date()) {
   if (!(ms > 0)) return log;
   const k = dayKey(when);
   return {
@@ -70,8 +76,16 @@ export function addSession(log, riffName, ms, when = new Date()) {
     totalMs: log.totalMs + ms,
     riffs: { ...log.riffs, [riffName]: (log.riffs[riffName] || 0) + ms },
     days: { ...log.days, [k]: (log.days[k] || 0) + ms },
-    sessions: log.sessions + 1,
+    sessions: log.sessions + (countSession ? 1 : 0),
   };
+}
+
+/**
+ * Add one finished session. Returns the new log (never mutates the old one).
+ * `when` is the day it counts toward — defaults to today.
+ */
+export function addSession(log, riffName, ms, when = new Date()) {
+  return addTime(log, riffName, ms, true, when);
 }
 
 export function reset() {

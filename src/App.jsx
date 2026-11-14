@@ -26,6 +26,7 @@ import {
   load as loadLog,
   save as saveLog,
   addSession,
+  addTime,
   reset as resetLog,
   streak as streakOf,
   thisWeekMs,
@@ -58,6 +59,11 @@ export default function App() {
   const [addRiff, setAddRiff] = useState("");
   const [addMins, setAddMins] = useState("20");
   const [addDay, setAddDay] = useState(() => dayKey());
+
+  const logRef = useRef(log);
+  logRef.current = log;
+  const lastSavedAtRef = useRef(0);
+  const sessionCountedRef = useRef(false);
   const [logMsg, setLogMsg] = useState("");
   const fileRef = useRef(null);
 
@@ -177,11 +183,6 @@ export default function App() {
     if (root) root.querySelectorAll(".cell.play").forEach((c) => c.classList.remove("play"));
   }, []);
 
-  const toggle = useCallback(() => {
-    if (rt.current.playing) stop();
-    else start();
-  }, [start, stop]);
-
   const setTempo = useCallback((v) => setTempoState(clamp(v)), []);
 
   const select = useCallback(
@@ -229,14 +230,21 @@ export default function App() {
   // ---- practice session timer ----
   //
   // Wall-clock deltas, not a counter we increment, so a throttled background
-  // tab still logs the real time spent.
+  // tab still logs the real time spent. Progress auto-saves every 5 seconds
+  // and triggers level-up awards immediately as thresholds are crossed.
+  const bankedInSession = session
+    ? Math.max(0, lastSavedAtRef.current - session.startedAt)
+    : 0;
+  const unbankedMs = session ? Math.max(0, elapsed - bankedInSession) : 0;
+
   const lvl = useMemo(() => levelInfo(log.totalMs), [log.totalMs]);
-  const liveTotal = log.totalMs + elapsed;
+  const liveTotal = log.totalMs + unbankedMs;
   const liveLvl = useMemo(() => levelInfo(liveTotal), [liveTotal]);
   const streak = useMemo(() => streakOf(log), [log]);
   const weekMs = useMemo(() => thisWeekMs(log), [log]);
   const top = useMemo(() => ranked(log), [log]);
-  const riffMs = (log.riffs[pat.name] || 0) + (session?.riff === pat.name ? elapsed : 0);
+  const riffMs =
+    (log.riffs[pat.name] || 0) + (session?.riff === pat.name ? unbankedMs : 0);
   const riffLvl = useMemo(() => riffLevelInfo(riffMs), [riffMs]);
 
   // On open: ask the browser to keep our storage, and bank any session that
@@ -274,19 +282,66 @@ export default function App() {
     return () => window.removeEventListener("hashchange", restoreFromHash);
   }, []);
 
+  const flushSession = useCallback((activeSession, showBankedAward = false) => {
+    if (!activeSession) return null;
+    const nowMs = Date.now();
+    const sessionElapsed = nowMs - activeSession.startedAt;
+    // Under 5 seconds is a mis-tap, not a practice session.
+    if (!sessionCountedRef.current && sessionElapsed < 5000) return null;
+
+    const delta = nowMs - lastSavedAtRef.current;
+    if (delta <= 0) return null;
+
+    lastSavedAtRef.current = nowMs;
+    const isFirstFlush = !sessionCountedRef.current;
+    sessionCountedRef.current = true;
+
+    const prev = logRef.current;
+    const next = addTime(prev, activeSession.riff, delta, isFirstFlush);
+    logRef.current = next;
+    setLog(next);
+    saveLog(next);
+
+    const before = levelInfo(prev.totalMs).level;
+    const after = levelInfo(next.totalMs).level;
+    const rBefore = riffLevelInfo(prev.riffs[activeSession.riff] || 0).level;
+    const rAfter = riffLevelInfo(next.riffs[activeSession.riff] || 0).level;
+    const levelled = after > before;
+    const riffLevelled = rAfter > rBefore;
+
+    if (levelled || riffLevelled || showBankedAward) {
+      setAward({
+        ms: showBankedAward ? sessionElapsed : delta,
+        riff: activeSession.riff,
+        levelled,
+        level: after,
+        riffLevelled,
+        riffLevel: rAfter,
+      });
+    }
+    return next;
+  }, []);
+
   useEffect(() => {
     if (!session) return undefined;
     const tick = () => {
-      setElapsed(Date.now() - session.startedAt);
-      checkpoint(session);
+      const nowMs = Date.now();
+      setElapsed(nowMs - session.startedAt);
+      if (nowMs - lastSavedAtRef.current >= 5000) {
+        flushSession(session, false);
+      }
+      checkpoint({ riff: session.riff, startedAt: lastSavedAtRef.current });
     };
     tick();
     const t = setInterval(tick, 1000);
     return () => clearInterval(t);
-  }, [session]);
+  }, [session, flushSession]);
 
   const startPractice = useCallback(() => {
-    setSession({ riff: pat.name, startedAt: Date.now() });
+    const nowMs = Date.now();
+    lastSavedAtRef.current = nowMs;
+    sessionCountedRef.current = false;
+    setSession({ riff: pat.name, startedAt: nowMs });
     setElapsed(0);
     setAward(null);
     if (!rt.current.playing) start();
@@ -294,42 +349,35 @@ export default function App() {
 
   const stopPractice = useCallback(() => {
     if (!session) return;
-    const ms = Date.now() - session.startedAt;
+    flushSession(session, true);
     setSession(null);
     setElapsed(0);
     clearCheckpoint();
     stop();
-    // Under 5 seconds is a mis-tap, not a practice session.
-    if (ms < 5000) return;
-    const before = levelInfo(log.totalMs).level;
-    const rBefore = riffLevelInfo(log.riffs[session.riff] || 0).level;
-    const next = addSession(log, session.riff, ms);
-    setLog(next);
-    saveLog(next);
-    const after = levelInfo(next.totalMs).level;
-    const rAfter = riffLevelInfo(next.riffs[session.riff] || 0).level;
-    setAward({
-      ms,
-      riff: session.riff,
-      levelled: after > before,
-      level: after,
-      riffLevelled: rAfter > rBefore,
-      riffLevel: rAfter,
-    });
-  }, [session, log, stop]);
+  }, [session, flushSession, stop]);
+
+  const toggle = useCallback(() => {
+    if (rt.current.playing) {
+      if (session) stopPractice();
+      else stop();
+    } else {
+      start();
+    }
+  }, [start, stop, stopPractice, session]);
 
   // Switching riffs mid-session banks the time against the riff you were
   // actually playing, then keeps the clock running on the new one.
   const bankAndSwitch = useCallback(
     (i, autoplay) => {
       if (session) {
-        const ms = Date.now() - session.startedAt;
-        if (ms >= 5000) {
-          const next = addSession(log, session.riff, ms);
-          setLog(next);
-          saveLog(next);
-        }
-        const nextSession = { riff: GROOVES[((i % GROOVES.length) + GROOVES.length) % GROOVES.length].name, startedAt: Date.now() };
+        flushSession(session, false);
+        const nowMs = Date.now();
+        lastSavedAtRef.current = nowMs;
+        sessionCountedRef.current = false;
+        const nextSession = {
+          riff: GROOVES[((i % GROOVES.length) + GROOVES.length) % GROOVES.length].name,
+          startedAt: nowMs,
+        };
         // Overwrite the checkpoint now, or a close before the next tick would
         // re-bank the riff we just banked.
         checkpoint(nextSession);
@@ -338,14 +386,15 @@ export default function App() {
       }
       select(i, autoplay);
     },
-    [session, log, select]
+    [session, flushSession, select]
   );
 
   // Don't lose a session if the tab closes mid-practice: stamp the checkpoint
   // the moment the page is hidden. The next open banks it (see recover()).
   useEffect(() => {
     if (!session) return undefined;
-    const onLeave = () => checkpoint(session);
+    const onLeave = () =>
+      checkpoint({ riff: session.riff, startedAt: lastSavedAtRef.current });
     const onVis = () => {
       if (document.visibilityState === "hidden") onLeave();
     };
@@ -365,7 +414,11 @@ export default function App() {
     )
       return;
     clearCheckpoint();
-    setLog(resetLog());
+    const fresh = resetLog();
+    logRef.current = fresh;
+    setLog(fresh);
+    lastSavedAtRef.current = 0;
+    sessionCountedRef.current = false;
     setSession(null);
     setElapsed(0);
     setAward(null);
@@ -704,9 +757,9 @@ export default function App() {
           <div className="logbody">
             {top.length === 0 ? (
               <p className="logempty">
-                Nothing logged yet. Pick a groove, hit <b>Practice</b>, and the
-                clock runs until you hit <b>Stop</b>. Time from every riff adds
-                into the same total.
+                No riffs logged yet (starting at Level 10 · 5h 00m). Pick a
+                groove, hit <b>Practice</b>, and your time saves and levels up
+                automatically as you play.
               </p>
             ) : (
               <table className="logtable">
