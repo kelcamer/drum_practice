@@ -39,6 +39,12 @@ import {
   exportJson,
   importJson,
 } from "./practice.js";
+import {
+  loadSyncConfig,
+  saveSyncConfig,
+  clearSyncConfig,
+  syncWithGitHub,
+} from "./sync.js";
 
 const LOOKAHEAD_MS = 25;
 const SCHEDULE_AHEAD = 0.12;
@@ -64,6 +70,15 @@ export default function App() {
   logRef.current = log;
   const lastSavedAtRef = useRef(0);
   const sessionCountedRef = useRef(false);
+
+  const [syncCfg, setSyncCfg] = useState(loadSyncConfig);
+  const [syncTokenInput, setSyncTokenInput] = useState("");
+  const [syncState, setSyncState] = useState(() =>
+    loadSyncConfig().token ? "idle" : "disconnected"
+  );
+  const [syncError, setSyncError] = useState("");
+  const lastRemotePushRef = useRef(0);
+  const syncInFlightRef = useRef(false);
   const [logMsg, setLogMsg] = useState("");
   const fileRef = useRef(null);
 
@@ -247,6 +262,46 @@ export default function App() {
     (log.riffs[pat.name] || 0) + (session?.riff === pat.name ? unbankedMs : 0);
   const riffLvl = useMemo(() => riffLevelInfo(riffMs), [riffMs]);
 
+  const runSync = useCallback(async (targetLog = logRef.current) => {
+    const cfg = loadSyncConfig();
+    if (!cfg.token || syncInFlightRef.current) return;
+    syncInFlightRef.current = true;
+    setSyncState("syncing");
+    setSyncError("");
+    try {
+      const res = await syncWithGitHub(targetLog);
+      if (res.status === "pulled" && res.log) {
+        logRef.current = res.log;
+        setLog(res.log);
+        saveLog(res.log);
+      }
+      setSyncCfg(loadSyncConfig());
+      setSyncState("synced");
+      lastRemotePushRef.current = Date.now();
+    } catch (e) {
+      setSyncState("error");
+      setSyncError(e?.message || "Sync failed");
+    } finally {
+      syncInFlightRef.current = false;
+    }
+  }, []);
+
+  const connectSync = useCallback(async () => {
+    const token = syncTokenInput.trim();
+    if (!token) return;
+    saveSyncConfig({ token, gistId: "", lastSyncedAt: 0 });
+    setSyncCfg(loadSyncConfig());
+    setSyncTokenInput("");
+    await runSync(logRef.current);
+  }, [syncTokenInput, runSync]);
+
+  const disconnectSync = useCallback(() => {
+    clearSyncConfig();
+    setSyncCfg(loadSyncConfig());
+    setSyncState("disconnected");
+    setSyncError("");
+  }, []);
+
   // On open: ask the browser to keep our storage, and bank any session that
   // was still running when the page last went away (tab closed, phone locked
   // and the browser killed it…) instead of losing it.
@@ -254,8 +309,12 @@ export default function App() {
     persist();
     const r = recover(loadLog());
     if (r) {
+      logRef.current = r.log;
       setLog(r.log);
       setAward({ ms: r.ms, riff: r.riff, recovered: true });
+    }
+    if (loadSyncConfig().token) {
+      runSync(r ? r.log : loadLog());
     }
 
     // Restore link for a level lost when the browser cleared its storage:
@@ -319,8 +378,17 @@ export default function App() {
         riffLevel: rAfter,
       });
     }
+
+    if (
+      levelled ||
+      riffLevelled ||
+      showBankedAward ||
+      nowMs - lastRemotePushRef.current >= 30000
+    ) {
+      runSync(next);
+    }
     return next;
-  }, []);
+  }, [runSync]);
 
   useEffect(() => {
     if (!session) return undefined;
@@ -432,12 +500,14 @@ export default function App() {
     if (!(mins > 0) || !y) return;
     const before = levelInfo(log.totalMs).level;
     const next = addSession(log, riff, Math.round(mins * 60000), new Date(y, m - 1, d));
+    logRef.current = next;
     setLog(next);
     saveLog(next);
+    runSync(next);
     const after = levelInfo(next.totalMs).level;
     setAward({ ms: mins * 60000, riff, levelled: after > before, level: after });
     setLogMsg(`Added ${fmtDur(mins * 60000)} on ${riff}.`);
-  }, [addMins, addRiff, addDay, pat.name, log]);
+  }, [addMins, addRiff, addDay, pat.name, log, runSync]);
 
   const downloadBackup = useCallback(() => {
     const blob = new Blob([exportJson(log)], { type: "application/json" });
@@ -463,21 +533,24 @@ export default function App() {
             )
           )
             return;
+          logRef.current = next;
           setLog(next);
           saveLog(next);
+          runSync(next);
           setLogMsg(`Restored ${fmtDur(next.totalMs)} from backup.`);
         } catch {
           setLogMsg("That file isn't a Groove Library backup.");
         }
       });
     },
-    [log.totalMs]
+    [log.totalMs, runSync]
   );
 
   // keyboard
   useEffect(() => {
     const onKey = (e) => {
       if (e.repeat) return;
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName)) return;
       const k = e.key.toLowerCase();
       if (KEYMAP[k]) {
         resume();
@@ -881,6 +954,86 @@ export default function App() {
                   ＋ Add
                 </button>
               </div>
+            </div>
+
+            <div className="logadd">
+              <div className="logadd-head">
+                <span className="logadd-title">GitHub Auto-Sync</span>
+                <span className={"sync-pill " + syncState}>
+                  {syncState === "syncing"
+                    ? "Syncing…"
+                    : syncState === "synced"
+                    ? "Synced ✓"
+                    : syncState === "error"
+                    ? "Sync error"
+                    : syncCfg.token
+                    ? "Connected"
+                    : "Not connected"}
+                </span>
+              </div>
+              {syncCfg.token ? (
+                <div className="logadd-row">
+                  <button
+                    className="resetbtn"
+                    style={{ marginTop: 0 }}
+                    onClick={() => runSync(logRef.current)}
+                    disabled={syncState === "syncing"}
+                  >
+                    ↻ Sync now
+                  </button>
+                  {syncCfg.gistId && (
+                    <a
+                      className="sync-link"
+                      href={`https://gist.github.com/${syncCfg.gistId}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      View Gist ↗
+                    </a>
+                  )}
+                  <button
+                    className="resetbtn danger"
+                    style={{ marginTop: 0 }}
+                    onClick={disconnectSync}
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="logadd-row">
+                    <input
+                      type="password"
+                      className="sync-input"
+                      placeholder="Paste GitHub token (gist scope)"
+                      value={syncTokenInput}
+                      onChange={(e) => setSyncTokenInput(e.target.value)}
+                      aria-label="GitHub Personal Access Token"
+                    />
+                    <button
+                      className="resetbtn"
+                      style={{ marginTop: 0 }}
+                      onClick={connectSync}
+                      disabled={!syncTokenInput.trim()}
+                    >
+                      Connect & Sync
+                    </button>
+                  </div>
+                  <p className="lognote">
+                    Auto-saves your levels to a private GitHub Gist so progress
+                    syncs across devices.{" "}
+                    <a
+                      className="sync-link"
+                      href="https://github.com/settings/tokens/new?scopes=gist&description=Groove%20Library%20Sync"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Create token (gist scope) ↗
+                    </a>
+                  </p>
+                </>
+              )}
+              {syncError && <p className="lognote sync-err">{syncError}</p>}
             </div>
 
             <div className="logactions">

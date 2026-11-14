@@ -1005,3 +1005,59 @@ h1 {
 @media (max-width: 560px) {
   .rifflvl-head { flex-wrap: wrap; gap: 2px; }
 }
+
+.logadd-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.logadd-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.sync-pill {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--line);
+  color: var(--muted);
+}
+
+.sync-pill.synced {
+  background: rgba(52, 211, 153, 0.16);
+  color: #34d399;
+}
+
+.sync-pill.syncing {
+  color: var(--accent);
+}
+
+.sync-pill.error {
+  background: rgba(248, 113, 113, 0.16);
+  color: #f87171;
+}
+
+.sync-input {
+  flex: 1;
+  min-width: 180px;
+}
+
+.sync-link {
+  font-size: 11px;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.sync-link:hover {
+  text-decoration: underline;
+}
+
+.sync-err {
+  color: #f87171;
+}
